@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 import { useSession } from "@/components/session";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/lib/network";
@@ -73,25 +73,6 @@ function Login() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión. Intentá nuevamente.");
     } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleGoogleLogin() {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/login`,
-      });
-      if (r.error) {
-        setError(r.error.message);
-        setBusy(false);
-      } else if (!r.redirected) {
-        await navigate({ to: (search.redirect || "/comunidad") as any });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error con Google Auth");
       setBusy(false);
     }
   }
@@ -186,15 +167,15 @@ function Login() {
 
       <div className="divider">o continuá con</div>
 
-      <Button
-        variant="outline"
-        className="w-full flex items-center justify-center gap-2"
-        onClick={handleGoogleLogin}
+      <GoogleAuthButton
+        text="continue_with"
         disabled={busy}
-      >
-        <span className="font-bold text-primary">G</span>
-        <span>Continuar con Google</span>
-      </Button>
+        onSuccess={async () => {
+          const target = search.redirect || "/comunidad";
+          await navigate({ to: target as any });
+        }}
+        onError={(err) => setError(err.message)}
+      />
 
       <div className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
         ¿Aún no tenés una cuenta en ACOMPAÑAME?{" "}

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Mail, Lock, User, MapPin, Building2, HeartHandshake, GraduationCap, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 import { useSession } from "@/components/session";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/lib/network";
@@ -89,25 +89,6 @@ function Registro() {
         setError(msg);
       }
     } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleGoogleLogin() {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/comunidad`,
-      });
-      if (r.error) {
-        setError(r.error.message);
-        setBusy(false);
-      } else if (!r.redirected) {
-        await navigate({ to: "/comunidad" });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al conectar con Google");
       setBusy(false);
     }
   }
@@ -264,21 +245,23 @@ function Registro() {
 
       <div className="divider">o continuá con</div>
 
-      <Button
-        variant="outline"
-        className="w-full flex items-center justify-center gap-2"
-        onClick={handleGoogleLogin}
+      <GoogleAuthButton
+        role={role}
+        text="signup_with"
         disabled={busy}
-      >
-        <span className="font-bold text-primary">G</span>
-        <span>Continuar con Google</span>
-      </Button>
+        onSuccess={async () => {
+          await navigate({ to: "/comunidad" });
+        }}
+        onError={(err) => setError(err.message)}
+      />
 
-      {role !== "aie" && (
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Nota: Google crea automáticamente un perfil AIE. Como {role === "centro" ? "Institución" : "Familia"}, registrate con tu correo arriba.
-        </p>
-      )}
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        Al registrarte con Google tu cuenta se creará como{" "}
+        <strong className="text-foreground">
+          {role === "centro" ? "Institución / Centro" : role === "familia" ? "Familia" : "Acompañante (AIE)"}
+        </strong>
+        .
+      </p>
 
       <div className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
         ¿Ya tenés una cuenta registrada?{" "}

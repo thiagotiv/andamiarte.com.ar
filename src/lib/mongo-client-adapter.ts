@@ -1,4 +1,4 @@
-import { mongoSignUpFn, mongoSignInFn, mongoCrudFn } from "./api-mongo";
+import { mongoSignUpFn, mongoSignInFn, mongoGoogleAuthFn, mongoSignOutFn, mongoCrudFn } from "./api-mongo";
 
 export type AuthListener = (event: string, session: any) => void;
 
@@ -109,7 +109,45 @@ export const mongoAuth = {
     }
   },
 
+  async signInWithGoogle({
+    credential,
+    role = "aie",
+  }: {
+    credential: string;
+    role?: string | undefined;
+  }) {
+    try {
+      const res = await mongoGoogleAuthFn({
+        data: { credential, role },
+      });
+
+      const session = {
+        access_token: res.token,
+        token_type: "bearer",
+        user: res.user,
+      };
+
+      setStoredSession(res.user, res.token);
+      notifyAuthListeners("SIGNED_IN", session);
+
+      return {
+        data: { user: res.user, session, isNewUser: res.isNewUser },
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        data: { user: null, session: null, isNewUser: false },
+        error: { message: err?.message || "Error al autenticarse con Google" },
+      };
+    }
+  },
+
   async signOut() {
+    try {
+      await mongoSignOutFn();
+    } catch {
+      // Ignorar fallo de red en logout
+    }
     clearStoredSession();
     notifyAuthListeners("SIGNED_OUT", null);
     return { error: null };

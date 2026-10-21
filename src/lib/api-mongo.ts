@@ -1,6 +1,36 @@
 import { createServerFn } from "@tanstack/react-start";
-import { registerMongoUser, loginMongoUser, verifyToken, getMongoUserById } from "./auth-mongo";
+import {
+  registerMongoUser,
+  loginMongoUser,
+  loginOrRegisterWithGoogle,
+  verifyToken,
+  getMongoUserById,
+} from "./auth-mongo";
 import { getDb, initMongoIndexes } from "./mongodb";
+
+async function setSessionCookie(token: string) {
+  try {
+    const { setCookie } = await import("@tanstack/react-start/server");
+    setCookie("auth_token", token, {
+      httpOnly: true,
+      secure: process.env["NODE_ENV"] === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 días
+    });
+  } catch {
+    // Continuar si no se está ejecutando dentro de un ciclo de respuesta HTTP SSR
+  }
+}
+
+async function clearSessionCookie() {
+  try {
+    const { deleteCookie } = await import("@tanstack/react-start/server");
+    deleteCookie("auth_token", { path: "/" });
+  } catch {
+    // Continuar
+  }
+}
 
 function formatMongoError(err: any): Error {
   const msg = err?.message || String(err);
@@ -43,7 +73,9 @@ export const mongoSignUpFn = createServerFn({ method: "POST" })
       throw new Error("El correo y la contraseña son requeridos.");
     }
     try {
-      return await registerMongoUser(data);
+      const res = await registerMongoUser(data);
+      await setSessionCookie(res.token);
+      return res;
     } catch (err: any) {
       throw formatMongoError(err);
     }
@@ -59,10 +91,43 @@ export const mongoSignInFn = createServerFn({ method: "POST" })
       throw new Error("El correo y la contraseña son requeridos.");
     }
     try {
-      return await loginMongoUser(data);
+      const res = await loginMongoUser(data);
+      await setSessionCookie(res.token);
+      return res;
     } catch (err: any) {
       throw formatMongoError(err);
     }
+  });
+
+export const mongoGoogleAuthFn = createServerFn({ method: "POST" })
+  .validator((d: { credential: string; role?: string | undefined }) => ({
+    credential: String(d.credential || ""),
+    role: d.role ? String(d.role) : undefined,
+  }))
+  .handler(async ({ data }) => {
+    if (!data.credential) {
+      throw new Error("La credencial o token de Google es requerida.");
+    }
+    try {
+      const res = await loginOrRegisterWithGoogle(data);
+      await setSessionCookie(res.token);
+      return res;
+    } catch (err: any) {
+      throw formatMongoError(err);
+    }
+  });
+
+export const mongoSignOutFn = createServerFn({ method: "POST" })
+  .handler(async () => {
+    await clearSessionCookie();
+    return { success: true };
+  });
+
+export const getGoogleClientIdFn = createServerFn({ method: "GET" })
+  .handler(async () => {
+    return {
+      clientId: process.env["GOOGLE_CLIENT_ID"] || process.env["VITE_GOOGLE_CLIENT_ID"] || "",
+    };
   });
 
 export const mongoGetSessionFn = createServerFn({ method: "POST" })

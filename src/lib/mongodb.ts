@@ -88,6 +88,7 @@ export async function initMongoIndexes() {
     const db = await getDb();
     await Promise.all([
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
+      db.collection("users").createIndex({ google_id: 1 }, { sparse: true }),
       db.collection("post_likes").createIndex({ post_id: 1, user_id: 1 }, { unique: true }),
       db.collection("connections").createIndex({ requester_id: 1, receiver_id: 1 }, { unique: true }),
       db.collection("posts").createIndex({ created_at: -1 }),

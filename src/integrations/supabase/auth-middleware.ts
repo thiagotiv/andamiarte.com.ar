@@ -12,18 +12,23 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     }
 
     const authHeader = request.headers.get("authorization");
+    let token = "";
 
-    if (!authHeader) {
-      throw new Error("Unauthorized: No authorization header provided");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.replace("Bearer ", "").trim();
+    } else {
+      // Fallback a cookie de sesión httpOnly si no hay cabecera Authorization
+      const cookieHeader = request.headers.get("cookie");
+      if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;\s*)(?:auth_token|sb-access-token)=([^;]+)/);
+        if (match && match[1]) {
+          token = decodeURIComponent(match[1]);
+        }
+      }
     }
 
-    if (!authHeader.startsWith("Bearer ")) {
-      throw new Error("Unauthorized: Only Bearer tokens are supported");
-    }
-
-    const token = authHeader.replace("Bearer ", "").trim();
     if (!token) {
-      throw new Error("Unauthorized: No token provided");
+      throw new Error("Unauthorized: No authorization token provided in headers or cookies");
     }
 
     // Validar token JWT de MongoDB
