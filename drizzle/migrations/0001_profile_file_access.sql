@@ -1,0 +1,3 @@
+CREATE POLICY upload_own_profile_files ON storage.objects FOR INSERT TO authenticated WITH CHECK(bucket_id='profile-files' AND (storage.foldername(name))[1]=auth.uid()::text);
+CREATE POLICY replace_own_profile_files ON storage.objects FOR UPDATE TO authenticated USING(bucket_id='profile-files' AND (storage.foldername(name))[1]=auth.uid()::text) WITH CHECK(bucket_id='profile-files' AND (storage.foldername(name))[1]=auth.uid()::text);
+CREATE POLICY read_profile_files ON storage.objects FOR SELECT TO authenticated USING(bucket_id='profile-files' AND ((storage.foldername(name))[1]=auth.uid()::text OR EXISTS(SELECT 1 FROM public.profiles p WHERE p.public_profile AND (p.avatar_path=name OR p.cv_path=name))));

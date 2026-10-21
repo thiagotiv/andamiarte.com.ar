@@ -1,0 +1,1 @@
+GRANT UPDATE (billing, education, experience, onboarded, years_experience, institution_type, contact) ON public.profiles TO authenticated;

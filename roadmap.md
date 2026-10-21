@@ -1,0 +1,14 @@
+# ACOMPAÑAME
+- [x] Brand system and landing page
+- [x] Secure email/Google accounts and private role-specific profiles
+- [x] Community posts
+- [x] Jobs, filters, publishing and applications
+- [x] Professional directory and private messages
+- [x] Verify navigation and authenticated flows
+- [x] Refine directory filters and three-skill cards
+- [x] Refine detailed AIE profile, availability toggle and CV download
+- [x] Set community as post-login home and refine mobile navigation/feed
+- [x] Verify updated flows and regression tests- [x] Interactive AIE CV (profile, export to PDF, endorsements, family reviews)
+- [x] Recruiting module: Postulación Rápida, Mis postulaciones, candidate board
+- [x] Onboarding guiado por rol, carga de foto/CV con arrastrar y soltar, edición integral del perfil
+- [x] Módulo 5: Perfiles Institucionales Públicos (/centro/$id) y Motor de Privacidad Granular (/configuracion-privacidad)

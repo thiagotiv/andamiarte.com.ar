@@ -1,0 +1,3 @@
+CREATE FUNCTION public.list_professionals() RETURNS SETOF public.profiles LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT p.* FROM public.profiles p JOIN public.user_roles r ON r.user_id=p.id WHERE p.public_profile AND r.role='aie' $$;
+REVOKE ALL ON FUNCTION public.list_professionals() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.list_professionals() TO anon,authenticated;

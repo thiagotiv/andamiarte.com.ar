@@ -1,0 +1,2 @@
+ALTER POLICY read_profile_files ON storage.objects TO authenticated USING (bucket_id = 'profile-files' AND ((storage.foldername(name))[1] = auth.uid()::text OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.public_profile AND (p.avatar_path = storage.objects.name OR p.cv_path = storage.objects.name))));
+CREATE POLICY public_professional_avatar ON storage.objects FOR SELECT TO anon USING (bucket_id = 'profile-files' AND EXISTS (SELECT 1 FROM public.list_professionals() p WHERE p.avatar_path = storage.objects.name));
