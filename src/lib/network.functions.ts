@@ -1020,19 +1020,36 @@ export const createPost = createServerFn({ method: "POST" })
     attachmentUrl?: string | null;
     attachmentName?: string | null;
     attachmentType?: string | null;
+    media?: {
+      url: string;
+      type: "image" | "video" | "pdf";
+      fileName?: string;
+      fileSize?: number;
+    } | null;
     pollData?: any;
     tags?: string[];
   }) => ({
-    content: String(d.content).trim(),
+    content: String(d.content || "").trim(),
     kind: String(d.kind || "logro"),
     attachmentUrl: d.attachmentUrl ? String(d.attachmentUrl).trim() : null,
     attachmentName: d.attachmentName ? String(d.attachmentName).trim() : null,
     attachmentType: d.attachmentType ? String(d.attachmentType).trim() : null,
+    media: d.media
+      ? {
+          url: String(d.media.url).trim(),
+          type: (d.media.type === "video" || d.media.type === "pdf" ? d.media.type : "image") as
+            | "image"
+            | "video"
+            | "pdf",
+          fileName: d.media.fileName ? String(d.media.fileName).trim() : undefined,
+          fileSize: typeof d.media.fileSize === "number" ? d.media.fileSize : undefined,
+        }
+      : null,
     pollData: d.pollData || null,
     tags: Array.isArray(d.tags) ? d.tags.map(String) : [],
   }))
   .handler(async ({ context, data }) => {
-    if (!data.content && !data.pollData && !data.attachmentUrl) {
+    if (!data.content && !data.pollData && !data.attachmentUrl && !data.media) {
       throw new Error("La publicación no puede estar vacía");
     }
 
@@ -1051,9 +1068,18 @@ export const createPost = createServerFn({ method: "POST" })
       author_name: (profile?.["name"] as string) || "Miembro de la red",
       content: data.content,
       kind: data.kind,
-      attachment_url: data.attachmentUrl,
-      attachment_name: data.attachmentName,
-      attachment_type: data.attachmentType,
+      attachment_url: data.attachmentUrl || data.media?.url || null,
+      attachment_name: data.attachmentName || data.media?.fileName || null,
+      attachment_type:
+        data.attachmentType ||
+        (data.media?.type === "image"
+          ? "image/*"
+          : data.media?.type === "video"
+            ? "video/*"
+            : data.media?.type === "pdf"
+              ? "application/pdf"
+              : null),
+      media: data.media || null,
       poll_data: data.pollData,
       tags: data.tags,
       likes_count: 0,

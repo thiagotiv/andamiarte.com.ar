@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Users,
   BriefcaseBusiness,
@@ -26,11 +26,19 @@ import {
   Hash,
   ArrowRight,
   Loader2,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, Empty, RouteError } from "@/components/site-shell";
 import { useSession } from "@/components/session";
+import {
+  uploadToCloudinary,
+  formatFileSize,
+  getFileMediaType,
+  validateFileSize,
+  MediaUploadType,
+} from "@/lib/cloudinary";
 import {
   networkOptions,
   accountOptions,
@@ -95,14 +103,17 @@ function Community() {
   const [busy, setBusy] = useState(false);
   const [votingBusyId, setVotingBusyId] = useState<string | null>(null);
 
-  // Attachments State
-  const [showAttachment, setShowAttachment] = useState(false);
-  const [attachmentName, setAttachmentName] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState("");
+  // Attachments State (Cloudinary Multimedia)
+  const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
+  const [mediaFileType, setMediaFileType] = useState<MediaUploadType | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const [showMediaPrompt, setShowMediaPrompt] = useState(false);
-  const [mediaType, setMediaType] = useState<"image" | "video">("image");
-  const [mediaUrl, setMediaUrl] = useState("");
+  // Hidden File Inputs Refs
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   // Poll State
   const [showPoll, setShowPoll] = useState(false);
@@ -285,11 +296,46 @@ function Community() {
     setPollOptions(updated);
   }
 
-  async function publish() {
-    if (!user || !account?.profile || !content.trim()) return;
+  function handleFileSelected(file: File) {
+    try {
+      const type = getFileMediaType(file);
+      validateFileSize(file, type);
 
-    if (showAttachment && (!attachmentName.trim() || !attachmentUrl.trim())) {
-      toast.error("Por favor completá el nombre y enlace del recurso descargable.");
+      if (mediaPreviewUrl) {
+        URL.revokeObjectURL(mediaPreviewUrl);
+      }
+
+      setSelectedMediaFile(file);
+      setMediaFileType(type);
+      setComposerOpen(true);
+
+      if (type === "image" || type === "video") {
+        const objUrl = URL.createObjectURL(file);
+        setMediaPreviewUrl(objUrl);
+      } else {
+        setMediaPreviewUrl(null);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Error al seleccionar el archivo.");
+    }
+  }
+
+  function handleRemoveFile() {
+    if (mediaPreviewUrl) {
+      URL.revokeObjectURL(mediaPreviewUrl);
+    }
+    setSelectedMediaFile(null);
+    setMediaPreviewUrl(null);
+    setMediaFileType(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+    if (videoInputRef.current) videoInputRef.current.value = "";
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+  }
+
+  async function publish() {
+    if (!user || !account?.profile) return;
+    if (!content.trim() && !selectedMediaFile && !showPoll) {
+      toast.error("Por favor escribí un mensaje o adjuntá un archivo para publicar.");
       return;
     }
 
@@ -307,6 +353,33 @@ function Community() {
 
     setBusy(true);
 
+    let mediaPayload: {
+      url: string;
+      type: "image" | "video" | "pdf";
+      fileName: string;
+      fileSize: number;
+    } | null = null;
+
+    if (selectedMediaFile) {
+      setIsUploading(true);
+      try {
+        const result = await uploadToCloudinary(selectedMediaFile);
+        mediaPayload = {
+          url: result.url,
+          type: result.type,
+          fileName: result.fileName,
+          fileSize: result.fileSize,
+        };
+      } catch (err: any) {
+        toast.error(err?.message || "No se pudo subir el archivo a Cloudinary.");
+        setBusy(false);
+        setIsUploading(false);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
     const validOptions = pollOptions.filter((o) => o.trim());
     const pollData =
       showPoll && pollQuestion.trim() && validOptions.length >= 2
@@ -323,51 +396,32 @@ function Community() {
 
     const postKind = pollData
       ? "encuesta"
-      : showAttachment && attachmentUrl
-        ? "recurso"
-        : showMediaPrompt && mediaUrl
-          ? mediaType
-          : kind;
-
-    const attachmentUrlFinal = showAttachment && attachmentUrl.trim()
-      ? attachmentUrl.trim()
-      : showMediaPrompt && mediaUrl.trim()
-        ? mediaUrl.trim()
-        : null;
-
-    const attachmentNameFinal = showAttachment && attachmentName.trim()
-      ? attachmentName.trim()
-      : showMediaPrompt && mediaUrl.trim()
-        ? `${mediaType === "image" ? "Foto" : "Video"} adjunto`
-        : null;
-
-    const attachmentTypeFinal = showAttachment && attachmentUrl.trim()
-      ? "application/pdf"
-      : showMediaPrompt && mediaUrl.trim()
-        ? mediaType === "image"
-          ? "image/*"
-          : "video/*"
-        : null;
+      : mediaPayload
+        ? mediaPayload.type === "pdf"
+          ? "recurso"
+          : mediaPayload.type
+        : kind;
 
     try {
       await createPost({
         data: {
           content: content.trim(),
           kind: postKind,
-          attachmentUrl: attachmentUrlFinal,
-          attachmentName: attachmentNameFinal,
-          attachmentType: attachmentTypeFinal,
+          media: mediaPayload,
+          attachmentUrl: mediaPayload ? mediaPayload.url : null,
+          attachmentName: mediaPayload ? mediaPayload.fileName : null,
+          attachmentType: mediaPayload
+            ? mediaPayload.type === "pdf"
+              ? "application/pdf"
+              : `${mediaPayload.type}/*`
+            : null,
           pollData,
           tags: selectedTags,
         },
       });
 
       setContent("");
-      setShowAttachment(false);
-      setAttachmentName("");
-      setAttachmentUrl("");
-      setShowMediaPrompt(false);
-      setMediaUrl("");
+      handleRemoveFile();
       setShowPoll(false);
       setPollQuestion("");
       setPollOptions(["", ""]);
@@ -451,7 +505,7 @@ function Community() {
       return false;
     }
     if (filter === "recursos") {
-      return p.kind === "recurso" || !!p.attachment_url;
+      return p.kind === "recurso" || !!p.attachment_url || (p as any).media?.type === "pdf";
     }
     if (filter === "encuestas") {
       return p.kind === "encuesta" || !!p.poll_data;
@@ -584,291 +638,370 @@ function Community() {
           {/* COLUMNA CENTRAL: Muro de Publicaciones (Estilo LinkedIn/X)  */}
           {/* ========================================================= */}
           <div className="col-span-12 lg:col-span-6 space-y-4">
-            {/* CAJA DE CREAR PUBLICACIÓN EXPANDIBLE ESTILO LINKEDIN */}
-            <div className="rounded-2xl border border-stone-200 bg-card p-4 shadow-xs">
+            {/* CAJA DE CREAR PUBLICACIÓN EXPANDIBLE CON DRAG & DROP Y CLOUDINARY */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleFileSelected(file);
+              }}
+              className={`rounded-2xl border bg-card p-4 shadow-xs transition-all duration-200 ${
+                isDragging
+                  ? "border-2 border-dashed border-primary bg-primary/5 shadow-md"
+                  : "border-stone-200"
+              }`}
+            >
+              {/* Inputs de archivo ocultos */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelected(file);
+                }}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelected(file);
+                }}
+              />
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelected(file);
+                }}
+              />
+
               {user ? (
                 <>
-                  <div className="flex items-center gap-3">
-                    <Avatar
-                      name={account?.profile?.name ?? "U"}
-                      path={account?.profile?.avatar_path}
-                      small
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setComposerOpen(true)}
-                      className="flex-1 text-left rounded-full border border-stone-300 bg-stone-50 hover:bg-stone-100 px-4 py-2.5 text-xs text-muted-foreground font-medium transition-colors cursor-pointer"
-                    >
-                      {composerOpen
-                        ? "¿Qué estás pensando para el aula hoy?"
-                        : "Comenzá una publicación sobre inclusión escolar..."}
-                    </button>
-                  </div>
+                  {isDragging ? (
+                    <div className="py-8 text-center text-primary font-medium text-xs sm:text-sm flex flex-col items-center justify-center gap-2">
+                      <UploadCloud size={32} className="animate-bounce text-primary" />
+                      <span>Soltá tu foto, video o documento PDF aquí para adjuntarlo</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          name={account?.profile?.name ?? "U"}
+                          path={account?.profile?.avatar_path}
+                          small
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setComposerOpen(true)}
+                          className="flex-1 text-left rounded-full border border-stone-300 bg-stone-50 hover:bg-stone-100 px-4 py-2.5 text-xs text-muted-foreground font-medium transition-colors cursor-pointer"
+                        >
+                          {composerOpen
+                            ? "¿Qué estás pensando para el aula hoy?"
+                            : "Comenzá una publicación sobre inclusión escolar..."}
+                        </button>
+                      </div>
 
-                  {/* Acceso Rápido: Foto, Video, Documento PDF, Encuesta, Artículo */}
-                  <div className="mt-3 pt-3 border-t border-stone-200 flex items-center justify-between flex-wrap gap-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerOpen(true);
-                        setShowMediaPrompt(true);
-                        setMediaType("image");
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-emerald-800 hover:bg-emerald-50 transition-colors font-medium cursor-pointer"
-                    >
-                      <ImageIcon size={16} className="text-emerald-600" />
-                      <span>Foto</span>
-                    </button>
+                      {/* Botones de selección multimedia y recursos */}
+                      <div className="mt-3 pt-3 border-t border-stone-200 flex items-center justify-between flex-wrap gap-1 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-emerald-800 hover:bg-emerald-50 transition-colors font-medium cursor-pointer"
+                        >
+                          <ImageIcon size={16} className="text-emerald-600" />
+                          <span>Foto</span>
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerOpen(true);
-                        setShowMediaPrompt(true);
-                        setMediaType("video");
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-amber-800 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
-                    >
-                      <Video size={16} className="text-amber-600" />
-                      <span>Video</span>
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => videoInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-amber-800 hover:bg-amber-50 transition-colors font-medium cursor-pointer"
+                        >
+                          <Video size={16} className="text-amber-600" />
+                          <span>Video</span>
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerOpen(true);
-                        setShowAttachment(true);
-                        if (!attachmentName && !attachmentUrl) {
-                          setAttachmentName("Guía de anticipación y pictogramas para primer ciclo.pdf");
-                          setAttachmentUrl("/docs/guia-anticipacion-visual-pictogramas.pdf");
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-blue-800 hover:bg-blue-50 transition-colors font-medium cursor-pointer"
-                    >
-                      <FileText size={16} className="text-blue-600" />
-                      <span>Documento (PDF)</span>
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => pdfInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-blue-800 hover:bg-blue-50 transition-colors font-medium cursor-pointer"
+                        >
+                          <FileText size={16} className="text-blue-600" />
+                          <span>Documento / PDF</span>
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerOpen(true);
-                        setShowPoll(true);
-                        if (!pollQuestion) {
-                          setPollQuestion("¿Qué herramienta te dio mejores resultados para transiciones?");
-                          setPollOptions(["Temporizador visual", "Canción de anticipación", "Pictogramas en mesa"]);
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-orange-800 hover:bg-orange-50 transition-colors font-medium cursor-pointer"
-                    >
-                      <BarChart2 size={16} className="text-orange-600" />
-                      <span>Encuesta</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerOpen(true);
-                        setKind("logro");
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-purple-800 hover:bg-purple-50 transition-colors font-medium cursor-pointer"
-                    >
-                      <PenSquare size={16} className="text-purple-600" />
-                      <span>Escribir logro</span>
-                    </button>
-                  </div>
-
-                  {/* FORMULARIO EXPANDIDO */}
-                  {composerOpen && (
-                    <div className="mt-4 pt-4 border-t border-stone-200 space-y-3.5">
-                      <textarea
-                        autoFocus
-                        aria-label="Contenido de la publicación"
-                        className="field w-full min-h-28 text-sm p-3 rounded-xl resize-y"
-                        placeholder="Compartí una experiencia de inclusión escolar, logros en la trayectoria de un alumno o abrí un debate pedagógico..."
-                        value={content}
-                        maxLength={5000}
-                        onChange={(e) => setContent(e.target.value)}
-                      />
-
-                      {/* Sección Foto / Video URL */}
-                      {showMediaPrompt && (
-                        <div className="p-3 rounded-xl border border-stone-200 bg-stone-50 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                              {mediaType === "image" ? <ImageIcon size={14} /> : <Video size={14} />}
-                              Adjuntar URL de {mediaType === "image" ? "imagen" : "video"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setShowMediaPrompt(false)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                          <input
-                            className="field text-xs w-full"
-                            placeholder={
-                              mediaType === "image"
-                                ? "URL de imagen (ej. https://images.unsplash.com/...)"
-                                : "URL de video educativo o YouTube"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setComposerOpen(true);
+                            setShowPoll(!showPoll);
+                            if (!pollQuestion && !showPoll) {
+                              setPollQuestion("¿Qué herramienta te dio mejores resultados para transiciones?");
+                              setPollOptions(["Temporizador visual", "Canción de anticipación", "Pictogramas en mesa"]);
                             }
-                            value={mediaUrl}
-                            onChange={(e) => setMediaUrl(e.target.value)}
-                          />
-                        </div>
-                      )}
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-orange-800 hover:bg-orange-50 transition-colors font-medium cursor-pointer"
+                        >
+                          <BarChart2 size={16} className="text-orange-600" />
+                          <span>Encuesta</span>
+                        </button>
 
-                      {/* Sección Adjuntar Recurso PDF */}
-                      {showAttachment && (
-                        <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                              <FileText size={15} /> Recurso descargable (PDF / Guía pedagógica)
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setShowAttachment(false)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            <input
-                              className="field text-xs"
-                              placeholder="Nombre (ej: Guía de pictogramas.pdf)"
-                              value={attachmentName}
-                              onChange={(e) => setAttachmentName(e.target.value)}
-                            />
-                            <input
-                              className="field text-xs"
-                              placeholder="URL del archivo PDF"
-                              value={attachmentUrl}
-                              onChange={(e) => setAttachmentUrl(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setComposerOpen(true);
+                            setKind("logro");
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-purple-800 hover:bg-purple-50 transition-colors font-medium cursor-pointer"
+                        >
+                          <PenSquare size={16} className="text-purple-600" />
+                          <span>Escribir logro</span>
+                        </button>
+                      </div>
 
-                      {/* Sección Encuesta Interactiva */}
-                      {showPoll && (
-                        <div className="p-3.5 rounded-xl border border-cta/30 bg-cta/5 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-cta flex items-center gap-1.5">
-                              <BarChart2 size={15} /> Encuesta Comunitaria
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setShowPoll(false)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                          <input
-                            className="field text-xs w-full"
-                            placeholder="Pregunta de la encuesta..."
-                            value={pollQuestion}
-                            onChange={(e) => setPollQuestion(e.target.value)}
+                      {/* FORMULARIO EXPANDIDO */}
+                      {composerOpen && (
+                        <div className="mt-4 pt-4 border-t border-stone-200 space-y-3.5">
+                          <textarea
+                            autoFocus
+                            aria-label="Contenido de la publicación"
+                            className="field w-full min-h-28 text-sm p-3 rounded-xl resize-y"
+                            placeholder="Compartí una experiencia de inclusión escolar, logros en la trayectoria de un alumno o abrí un debate pedagógico..."
+                            value={content}
+                            maxLength={5000}
+                            onChange={(e) => setContent(e.target.value)}
                           />
-                          <div className="space-y-1.5">
-                            {pollOptions.map((opt, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <input
-                                  className="field text-xs flex-1"
-                                  placeholder={`Opción ${idx + 1}`}
-                                  value={opt}
-                                  onChange={(e) => updatePollOption(idx, e.target.value)}
-                                />
-                                {pollOptions.length > 2 && (
+
+                          {/* Previsualización del archivo multimedia adjunto */}
+                          {selectedMediaFile && (
+                            <div className="relative">
+                              {mediaFileType === "image" && mediaPreviewUrl && (
+                                <div className="relative rounded-xl overflow-hidden border border-border/80 bg-stone-100 max-h-72 w-full group">
+                                  <img
+                                    src={mediaPreviewUrl}
+                                    alt="Vista previa de foto"
+                                    className="w-full h-auto max-h-72 object-contain mx-auto block"
+                                  />
                                   <button
                                     type="button"
-                                    onClick={() => removePollOption(idx)}
-                                    className="text-muted-foreground hover:text-red-500"
+                                    onClick={handleRemoveFile}
+                                    className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center transition-colors shadow-md cursor-pointer"
+                                    title="Quitar imagen"
+                                    aria-label="Quitar imagen seleccionada"
                                   >
-                                    <X size={14} />
+                                    <X size={16} />
                                   </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          {pollOptions.length < 4 && (
-                            <button
-                              type="button"
-                              onClick={addPollOption}
-                              className="text-xs font-semibold text-cta hover:underline inline-flex items-center gap-1"
-                            >
-                              <Plus size={12} /> Añadir otra opción
-                            </button>
+                                  <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-black/60 text-white text-[11px] backdrop-blur-xs">
+                                    {selectedMediaFile.name} ({formatFileSize(selectedMediaFile.size)})
+                                  </div>
+                                </div>
+                              )}
+
+                              {mediaFileType === "video" && mediaPreviewUrl && (
+                                <div className="relative rounded-xl overflow-hidden border border-border/80 bg-stone-900 max-h-72 w-full group">
+                                  <video
+                                    src={mediaPreviewUrl}
+                                    controls
+                                    className="w-full h-auto max-h-72 object-contain mx-auto"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleRemoveFile}
+                                    className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center transition-colors shadow-md cursor-pointer"
+                                    title="Quitar video"
+                                    aria-label="Quitar video seleccionado"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                  <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-black/60 text-white text-[11px] backdrop-blur-xs">
+                                    {selectedMediaFile.name} ({formatFileSize(selectedMediaFile.size)})
+                                  </div>
+                                </div>
+                              )}
+
+                              {mediaFileType === "pdf" && (
+                                <div className="relative p-3.5 rounded-xl border border-red-200 bg-red-50/70 flex items-center justify-between gap-3 shadow-xs">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                                      <FileText size={22} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <strong className="text-xs sm:text-sm font-semibold text-foreground block truncate">
+                                        {selectedMediaFile.name}
+                                      </strong>
+                                      <span className="text-[11px] text-muted-foreground">
+                                        Documento PDF · {formatFileSize(selectedMediaFile.size)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={handleRemoveFile}
+                                    className="w-8 h-8 rounded-full bg-white hover:bg-red-100 text-stone-600 hover:text-red-700 border border-stone-200 flex items-center justify-center transition-colors shadow-xs cursor-pointer"
+                                    title="Quitar documento"
+                                    aria-label="Quitar documento PDF seleccionado"
+                                  >
+                                    <X size={15} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
+
+                          {/* Sección Encuesta Interactiva */}
+                          {showPoll && (
+                            <div className="p-3.5 rounded-xl border border-cta/30 bg-cta/5 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-cta flex items-center gap-1.5">
+                                  <BarChart2 size={15} /> Encuesta Comunitaria
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPoll(false)}
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                              <input
+                                className="field text-xs w-full"
+                                placeholder="Pregunta de la encuesta..."
+                                value={pollQuestion}
+                                onChange={(e) => setPollQuestion(e.target.value)}
+                              />
+                              <div className="space-y-1.5">
+                                {pollOptions.map((opt, idx) => (
+                                  <div key={idx} className="flex items-center gap-2">
+                                    <input
+                                      className="field text-xs flex-1"
+                                      placeholder={`Opción ${idx + 1}`}
+                                      value={opt}
+                                      onChange={(e) => updatePollOption(idx, e.target.value)}
+                                    />
+                                    {pollOptions.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => removePollOption(idx)}
+                                        className="text-muted-foreground hover:text-red-500"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              {pollOptions.length < 4 && (
+                                <button
+                                  type="button"
+                                  onClick={addPollOption}
+                                  className="text-xs font-semibold text-cta hover:underline inline-flex items-center gap-1"
+                                >
+                                  <Plus size={12} /> Añadir otra opción
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Etiquetas sugeridas */}
+                          <div className="space-y-1">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                              Etiquetas temáticas:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {SUGGESTED_TAGS.map((tag) => {
+                                const isSelected = selectedTags.includes(tag);
+                                return (
+                                  <button
+                                    key={tag}
+                                    type="button"
+                                    onClick={() => toggleTag(tag)}
+                                    className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-primary text-primary-foreground border-primary font-semibold"
+                                        : "bg-stone-100 text-muted-foreground border-stone-200 hover:bg-stone-200"
+                                    }`}
+                                  >
+                                    {tag}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Botones de Guardar / Cancelar */}
+                          <div className="flex items-center justify-between pt-2 border-t border-stone-200">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setComposerOpen(false)}
+                              className="text-xs text-muted-foreground"
+                            >
+                              Cancelar
+                            </Button>
+
+                            <div className="flex items-center gap-2">
+                              <select
+                                aria-label="Tipo"
+                                className="field text-xs h-8"
+                                value={kind}
+                                onChange={(e) => setKind(e.target.value)}
+                              >
+                                <option value="logro">Logro de aula</option>
+                                <option value="recurso">Recurso didáctico</option>
+                                <option value="debate">Debate profesional</option>
+                              </select>
+
+                              <Button
+                                variant="cta"
+                                size="sm"
+                                onClick={publish}
+                                disabled={
+                                  busy ||
+                                  isUploading ||
+                                  (!content.trim() && !selectedMediaFile && !showPoll)
+                                }
+                                className="gap-1.5 text-xs font-bold"
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <Loader2 size={13} className="animate-spin" />
+                                    Subiendo archivo...
+                                  </>
+                                ) : busy ? (
+                                  <>
+                                    <Loader2 size={13} className="animate-spin" />
+                                    Publicando…
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send size={13} />
+                                    Publicar
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       )}
-
-                      {/* Etiquetas sugeridas */}
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                          Etiquetas temáticas:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {SUGGESTED_TAGS.map((tag) => {
-                            const isSelected = selectedTags.includes(tag);
-                            return (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => toggleTag(tag)}
-                                className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground border-primary font-semibold"
-                                    : "bg-stone-100 text-muted-foreground border-stone-200 hover:bg-stone-200"
-                                }`}
-                              >
-                                {tag}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Botones de Guardar / Cancelar */}
-                      <div className="flex items-center justify-between pt-2 border-t border-stone-200">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setComposerOpen(false)}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Cancelar
-                        </Button>
-
-                        <div className="flex items-center gap-2">
-                          <select
-                            aria-label="Tipo"
-                            className="field text-xs h-8"
-                            value={kind}
-                            onChange={(e) => setKind(e.target.value)}
-                          >
-                            <option value="logro">Logro de aula</option>
-                            <option value="recurso">Recurso didáctico</option>
-                            <option value="debate">Debate profesional</option>
-                          </select>
-
-                          <Button
-                            variant="cta"
-                            size="sm"
-                            onClick={publish}
-                            disabled={busy || !content.trim()}
-                            className="gap-1.5 text-xs font-bold"
-                          >
-                            <Send size={13} />
-                            {busy ? "Publicando…" : "Publicar"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </>
               ) : (
@@ -1038,58 +1171,82 @@ function Community() {
                       )}
                     </div>
 
-                    {/* RECURSO ADJUNTO DESCARGABLE EN PDF */}
-                    {p.attachment_name && p.attachment_type === "application/pdf" && (
-                      <div className="p-3.5 rounded-xl border border-red-200 bg-red-50/60 flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600 shrink-0">
-                            <FileText size={22} />
-                          </div>
-                          <div className="min-w-0">
-                            <strong className="text-xs sm:text-sm font-semibold text-foreground block truncate">
-                              {p.attachment_name}
-                            </strong>
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                              <Sparkles size={11} className="text-cta" /> Material Pedagógico Imprimible · Descarga gratuita
-                            </span>
-                          </div>
-                        </div>
-                        <Button asChild size="sm" variant="cta" className="gap-1.5 text-xs font-bold shrink-0">
-                          <a
-                            href={p.attachment_url || "#"}
-                            download={p.attachment_name}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download size={13} />
-                            Descargar PDF
-                          </a>
-                        </Button>
-                      </div>
-                    )}
+                    {/* RECURSO MULTIMEDIA (FOTOS, VIDEOS Y DOCUMENTOS PDF) */}
+                    {(() => {
+                      const postMedia = (p as any).media || (p.attachment_url ? {
+                        url: p.attachment_url,
+                        type: p.attachment_type === "application/pdf"
+                          ? ("pdf" as const)
+                          : p.attachment_type?.startsWith("video/")
+                            ? ("video" as const)
+                            : ("image" as const),
+                        fileName: p.attachment_name || undefined,
+                        fileSize: (p as any).media?.fileSize,
+                      } : null);
 
-                    {/* RECURSO MULTIMEDIA (IMAGEN CON ALTURA CONTROLADA Y OBJECT-COVER) */}
-                    {p.attachment_url && p.attachment_type?.startsWith("image/") && (
-                      <div className="rounded-xl overflow-hidden border border-stone-200 w-full h-64 sm:h-80 md:h-96 bg-stone-100 relative">
-                        <img
-                          src={p.attachment_url}
-                          alt={p.attachment_name || "Imagen de la publicación"}
-                          className="w-full h-full object-cover block"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
+                      if (!postMedia) return null;
 
-                    {/* RECURSO MULTIMEDIA (VIDEO ADAPTATIVO CON ASPECT-VIDEO) */}
-                    {p.attachment_url && p.attachment_type?.startsWith("video/") && (
-                      <div className="rounded-xl overflow-hidden border border-stone-200 w-full aspect-video bg-stone-900 relative">
-                        <video
-                          src={p.attachment_url}
-                          controls
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
+                      if (postMedia.type === "image") {
+                        return (
+                          <div className="rounded-2xl overflow-hidden border border-stone-200 w-full bg-stone-100 shadow-xs relative">
+                            <img
+                              src={postMedia.url}
+                              alt={postMedia.fileName || p.attachment_name || "Foto de la publicación"}
+                              className="w-full h-auto max-h-[500px] object-cover block cursor-pointer hover:opacity-95 transition-opacity"
+                              loading="lazy"
+                              onClick={() => window.open(postMedia.url, "_blank")}
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (postMedia.type === "video") {
+                        return (
+                          <div className="rounded-2xl overflow-hidden border border-stone-200 w-full aspect-video bg-stone-900 shadow-xs relative flex items-center justify-center">
+                            <video
+                              src={postMedia.url}
+                              controls
+                              className="rounded-xl max-h-96 w-full object-cover"
+                              preload="metadata"
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (postMedia.type === "pdf") {
+                        return (
+                          <div className="p-3.5 sm:p-4 rounded-2xl border border-red-200 bg-red-50/70 flex items-center justify-between flex-wrap gap-3 shadow-xs">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-red-100 flex items-center justify-center text-red-600 shrink-0 shadow-xs">
+                                <FileText size={22} />
+                              </div>
+                              <div className="min-w-0">
+                                <strong className="text-xs sm:text-sm font-semibold text-foreground block truncate">
+                                  {postMedia.fileName || p.attachment_name || "Documento PDF"}
+                                </strong>
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                  <Sparkles size={11} className="text-cta" />
+                                  Documento PDF {postMedia.fileSize ? `· ${formatFileSize(postMedia.fileSize)}` : ""} · Descarga libre
+                                </span>
+                              </div>
+                            </div>
+                            <Button asChild size="sm" variant="cta" className="gap-1.5 text-xs font-bold shrink-0">
+                              <a
+                                href={postMedia.url}
+                                download={postMedia.fileName || p.attachment_name || "documento.pdf"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Download size={13} />
+                                Descargar recurso
+                              </a>
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })()}
 
                     {/* ENCUESTA INTERACTIVA */}
                     {hasPoll && (
