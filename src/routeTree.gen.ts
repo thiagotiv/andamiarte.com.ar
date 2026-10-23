@@ -15,9 +15,11 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BusquedasRouteImport } from './routes/busquedas'
 import { Route as ComunidadRouteImport } from './routes/comunidad'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as ProfesionalesRouteImport } from './routes/profesionales'
 import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as TerminosRouteImport } from './routes/terminos'
 import { Route as VerificacionRouteImport } from './routes/verificacion'
 import { Route as AuthenticatedCandidatosRouteImport } from './routes/_authenticated/candidatos'
 import { Route as AuthenticatedConfiguracionPrivacidadRouteImport } from './routes/_authenticated/configuracion-privacidad'
@@ -58,6 +60,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfesionalesRoute = ProfesionalesRouteImport.update({
   id: '/profesionales',
   path: '/profesionales',
@@ -71,6 +78,11 @@ const RegistroRoute = RegistroRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TerminosRoute = TerminosRouteImport.update({
+  id: '/terminos',
+  path: '/terminos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerificacionRoute = VerificacionRouteImport.update({
@@ -134,9 +146,11 @@ export interface FileRoutesByFullPath {
   '/busquedas': typeof BusquedasRoute
   '/comunidad': typeof ComunidadRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/profesionales': typeof ProfesionalesRoute
   '/registro': typeof RegistroRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/terminos': typeof TerminosRoute
   '/verificacion': typeof VerificacionRoute
   '/candidatos': typeof AuthenticatedCandidatosRoute
   '/configuracion-privacidad': typeof AuthenticatedConfiguracionPrivacidadRoute
@@ -154,9 +168,11 @@ export interface FileRoutesByTo {
   '/busquedas': typeof BusquedasRoute
   '/comunidad': typeof ComunidadRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/profesionales': typeof ProfesionalesRoute
   '/registro': typeof RegistroRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/terminos': typeof TerminosRoute
   '/verificacion': typeof VerificacionRoute
   '/candidatos': typeof AuthenticatedCandidatosRoute
   '/configuracion-privacidad': typeof AuthenticatedConfiguracionPrivacidadRoute
@@ -176,9 +192,11 @@ export interface FileRoutesById {
   '/busquedas': typeof BusquedasRoute
   '/comunidad': typeof ComunidadRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/profesionales': typeof ProfesionalesRoute
   '/registro': typeof RegistroRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/terminos': typeof TerminosRoute
   '/verificacion': typeof VerificacionRoute
   '/_authenticated/candidatos': typeof AuthenticatedCandidatosRoute
   '/_authenticated/configuracion-privacidad': typeof AuthenticatedConfiguracionPrivacidadRoute
@@ -198,9 +216,11 @@ export interface FileRouteTypes {
     | '/busquedas'
     | '/comunidad'
     | '/login'
+    | '/privacidad'
     | '/profesionales'
     | '/registro'
     | '/reset-password'
+    | '/terminos'
     | '/verificacion'
     | '/candidatos'
     | '/configuracion-privacidad'
@@ -218,9 +238,11 @@ export interface FileRouteTypes {
     | '/busquedas'
     | '/comunidad'
     | '/login'
+    | '/privacidad'
     | '/profesionales'
     | '/registro'
     | '/reset-password'
+    | '/terminos'
     | '/verificacion'
     | '/candidatos'
     | '/configuracion-privacidad'
@@ -239,9 +261,11 @@ export interface FileRouteTypes {
     | '/busquedas'
     | '/comunidad'
     | '/login'
+    | '/privacidad'
     | '/profesionales'
     | '/registro'
     | '/reset-password'
+    | '/terminos'
     | '/verificacion'
     | '/_authenticated/candidatos'
     | '/_authenticated/configuracion-privacidad'
@@ -261,9 +285,11 @@ export interface RootRouteChildren {
   BusquedasRoute: typeof BusquedasRoute
   ComunidadRoute: typeof ComunidadRoute
   LoginRoute: typeof LoginRoute
+  PrivacidadRoute: typeof PrivacidadRoute
   ProfesionalesRoute: typeof ProfesionalesRoute
   RegistroRoute: typeof RegistroRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  TerminosRoute: typeof TerminosRoute
   VerificacionRoute: typeof VerificacionRoute
   CentroIdRoute: typeof CentroIdRoute
 }
@@ -312,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profesionales': {
       id: '/profesionales'
       path: '/profesionales'
@@ -331,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terminos': {
+      id: '/terminos'
+      path: '/terminos'
+      fullPath: '/terminos'
+      preLoaderRoute: typeof TerminosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verificacion': {
@@ -439,9 +479,11 @@ const rootRouteChildren: RootRouteChildren = {
   BusquedasRoute: BusquedasRoute,
   ComunidadRoute: ComunidadRoute,
   LoginRoute: LoginRoute,
+  PrivacidadRoute: PrivacidadRoute,
   ProfesionalesRoute: ProfesionalesRoute,
   RegistroRoute: RegistroRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  TerminosRoute: TerminosRoute,
   VerificacionRoute: VerificacionRoute,
   CentroIdRoute: CentroIdRoute,
 }

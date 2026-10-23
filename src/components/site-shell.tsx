@@ -186,8 +186,11 @@ export function Footer() {
           <Link to="/profesionales" className="hover:text-primary transition-colors">
             Directorio AIE
           </Link>
-          <Link to="/configuracion-privacidad" className="hover:text-primary transition-colors">
-            Privacidad
+          <Link to="/terminos" className="hover:text-primary transition-colors">
+            Términos y Condiciones
+          </Link>
+          <Link to="/privacidad" className="hover:text-primary transition-colors">
+            Política de Privacidad
           </Link>
         </div>
         <span className="text-xs font-semibold text-muted-foreground/80">

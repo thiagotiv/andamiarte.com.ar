@@ -30,6 +30,7 @@ function Registro() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const { user } = useSession();
@@ -47,6 +48,12 @@ function Registro() {
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
     const cleanZone = zone.trim();
+
+    if (!acceptedTerms) {
+      setError("Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte.");
+      setBusy(false);
+      return;
+    }
 
     if (password.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres.");
@@ -237,7 +244,29 @@ function Registro() {
           </small>
         </label>
 
-        <Button variant="cta" size="lg" type="submit" disabled={busy} className="mt-3 w-full">
+        <div className="flex items-start gap-2.5 pt-1">
+          <input
+            id="terms-checkbox"
+            type="checkbox"
+            required
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary shrink-0"
+          />
+          <label htmlFor="terms-checkbox" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
+            Acepto los{" "}
+            <Link to="/terminos" target="_blank" className="font-semibold text-primary underline hover:text-foreground">
+              Términos y Condiciones
+            </Link>{" "}
+            y la{" "}
+            <Link to="/privacidad" target="_blank" className="font-semibold text-primary underline hover:text-foreground">
+              Política de Privacidad
+            </Link>{" "}
+            de Andamiarte.
+          </label>
+        </div>
+
+        <Button variant="cta" size="lg" type="submit" disabled={busy || !acceptedTerms} className="mt-3 w-full">
           {busy ? "Creando cuenta…" : "Registrarme y recibir código"}
           <ArrowRight className="ml-1" size={18} />
         </Button>
