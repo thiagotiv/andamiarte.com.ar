@@ -27,10 +27,21 @@ export function pageHead(title: string, description: string) {
     meta: [
       { title: `${title} · Andamiarte` },
       { name: "description", content: description },
+      { property: "og:site_name", content: "Andamiarte" },
+      { property: "og:locale", content: "es_AR" },
       { property: "og:title", content: `${title} · Andamiarte` },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://andamiarte.com.ar/og-image.png" },
+      { property: "og:image:secure_url", content: "https://andamiarte.com.ar/og-image.png" },
+      { property: "og:image:type", content: "image/png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Andamiarte - Red de Inclusión Escolar" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: `${title} · Andamiarte` },
+      { name: "twitter:description", content: description },
+      { name: "twitter:image", content: "https://andamiarte.com.ar/og-image.png" },
     ],
   };
 }

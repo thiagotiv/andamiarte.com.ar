@@ -28,11 +28,46 @@ const BANNER_SLIDES: BannerSlide[] = [
 ];
 
 export const Route = createFileRoute("/")({
-  head: () =>
-    pageHead(
-      "Red de Inclusión Escolar",
-      "Conectamos acompañantes externos, centros educativos y familias para construir una inclusión escolar con más oportunidades.",
-    ),
+  head: () => ({
+    meta: [
+      { title: "Andamiarte | Red de Inclusión Escolar" },
+      {
+        name: "description",
+        content:
+          "Plataforma colaborativa y red profesional de inclusión escolar en Argentina. Conectamos Acompañantes de Integración Escolar (AIE/APND/AT), centros educativos y familias.",
+      },
+      {
+        name: "keywords",
+        content:
+          "AIE, APND, acompañante de integración escolar, inclusión escolar, educación inclusiva, acompañante terapéutico, discapacidad, educación especial, Argentina",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:locale", content: "es_AR" },
+      { property: "og:site_name", content: "Andamiarte" },
+      { property: "og:title", content: "Andamiarte | Red de Inclusión Escolar" },
+      {
+        property: "og:description",
+        content:
+          "Conectando acompañantes de integración escolar (AIE), centros educativos y familias para fortalecer trayectorias pedagógicas inclusivas.",
+      },
+      { property: "og:url", content: "https://andamiarte.com.ar" },
+      { property: "og:image", content: "https://andamiarte.com.ar/og-image.png" },
+      { property: "og:image:secure_url", content: "https://andamiarte.com.ar/og-image.png" },
+      { property: "og:image:type", content: "image/png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Andamiarte - Red de Inclusión Escolar" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Andamiarte | Red de Inclusión Escolar" },
+      {
+        name: "twitter:description",
+        content:
+          "Espacio de vinculación profesional y comunitaria para la inclusión educativa en Argentina.",
+      },
+      { name: "twitter:image", content: "https://andamiarte.com.ar/og-image.png" },
+    ],
+    links: [{ rel: "canonical", href: "https://andamiarte.com.ar" }],
+  }),
   component: Home,
 });
 
