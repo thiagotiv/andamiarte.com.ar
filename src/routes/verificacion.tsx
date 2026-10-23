@@ -17,7 +17,7 @@ export const Route = createFileRoute("/verificacion")({
   head: () =>
     pageHead(
       "Verificación de Correo",
-      "Confirmá tu dirección de correo electrónico con el código de 6 dígitos para habilitar tu cuenta en ACOMPAÑAME.",
+      "Confirmá tu dirección de correo electrónico con el código de 6 dígitos para habilitar tu cuenta en Andamiarte.",
     ),
   component: Verificacion,
 });
@@ -238,7 +238,7 @@ function Verificacion() {
           <CheckCircle2 className="mx-auto h-10 w-10 text-green-600 mb-2" />
           <h3 className="text-lg font-bold">¡Cuenta verificada exitosamente!</h3>
           <p className="mt-1 text-sm text-green-800">
-            Te estamos redirigiendo a la comunidad de ACOMPAÑAME...
+            Te estamos redirigiendo a la comunidad de Andamiarte...
           </p>
         </div>
       ) : (

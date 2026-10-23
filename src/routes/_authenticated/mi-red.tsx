@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/mi-red")({
   head: () =>
     pageHead(
       "Mi red",
-      "Tu red activa de conversaciones y contactos en ACOMPAÑAME.",
+      "Tu red activa de conversaciones y contactos en Andamiarte.",
     ),
   component: MyNetwork,
   errorComponent: RouteError,

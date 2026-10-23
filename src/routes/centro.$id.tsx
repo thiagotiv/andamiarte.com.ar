@@ -34,7 +34,7 @@ export const Route = createFileRoute("/centro/$id")({
     const org = loaderData?.profile?.name || "Institución Educativa";
     return pageHead(
       `${org} · Perfil Institucional`,
-      `Conocé la propuesta inclusiva, equipo y búsquedas activas de ${org} en ACOMPAÑAME.`,
+      `Conocé la propuesta inclusiva, equipo y búsquedas activas de ${org} en Andamiarte.`,
     );
   },
   component: InstitutionalProfile,

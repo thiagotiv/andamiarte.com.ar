@@ -81,11 +81,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ACOMPAÑAME" },
-      { name: "description", content: "La red profesional de inclusión escolar" },
+      { title: "Andamiarte | Red de Inclusión Escolar" },
+      { name: "description", content: "Andamiarte - La red profesional de inclusión escolar" },
 
-      { property: "og:title", content: "ACOMPAÑAME" },
-      { property: "og:description", content: "La red profesional de inclusión escolar" },
+      { property: "og:title", content: "Andamiarte | Red de Inclusión Escolar" },
+      { property: "og:description", content: "Andamiarte - La red profesional de inclusión escolar" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -94,7 +94,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/favicon.png" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",

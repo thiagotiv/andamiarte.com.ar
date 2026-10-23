@@ -10,21 +10,12 @@ import { NotificationBell } from "./notification-bell";
 import { OnboardingGate } from "./onboarding-wizard";
 export function Brand() {
   return (
-    <Link to="/" className="brand">
-      <svg
-        className="brand-mark"
-        viewBox="0 0 40 44"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <circle cx="13" cy="9" r="4" />
-        <circle cx="28" cy="12" r="3.5" />
-        <path d="M5 36V23q0-7 8-7t8 7v14M24 22q2-4 5-4 7 0 7 7v11M13 24l12 6" />
-      </svg>
-      ACOMPAÑAME<span className="text-cta">.</span>
+    <Link to="/" className="brand flex items-center gap-2 group" aria-label="Andamiarte">
+      <img
+        src="/logo.png"
+        alt="Andamiarte"
+        className="h-10 md:h-11 w-auto object-contain transition-transform group-hover:scale-105"
+      />
     </Link>
   );
 }
@@ -176,11 +167,32 @@ export function Header() {
 }
 export function Footer() {
   return (
-    <footer className="footer">
-      <div className="container-wide footer-inner">
-        <Brand />
-        <span>Una red que conecta. Una comunidad que acompaña.</span>
-        <span>© 2026 ACOMPAÑAME</span>
+    <footer className="footer bg-card border-t border-border py-8 md:py-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <Brand />
+          <span className="text-xs text-muted-foreground hidden sm:inline">|</span>
+          <span className="text-xs text-muted-foreground">
+            Una red que conecta. Una comunidad que acompaña.
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground font-medium">
+          <Link to="/comunidad" className="hover:text-primary transition-colors">
+            Comunidad
+          </Link>
+          <Link to="/busquedas" className="hover:text-primary transition-colors">
+            Búsquedas Laborales
+          </Link>
+          <Link to="/profesionales" className="hover:text-primary transition-colors">
+            Directorio AIE
+          </Link>
+          <Link to="/configuracion-privacidad" className="hover:text-primary transition-colors">
+            Privacidad
+          </Link>
+        </div>
+        <span className="text-xs font-semibold text-muted-foreground/80">
+          © 2026 ANDAMIARTE
+        </span>
       </div>
     </footer>
   );

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/login")({
   head: () =>
     pageHead(
       "Iniciar Sesión",
-      "Ingresá a tu cuenta en ACOMPAÑAME y conectate con familias, profesionales y centros inclusivos.",
+      "Ingresá a tu cuenta en Andamiarte y conectate con familias, profesionales y centros inclusivos.",
     ),
   component: Login,
 });
@@ -178,7 +178,7 @@ function Login() {
       />
 
       <div className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-        ¿Aún no tenés una cuenta en ACOMPAÑAME?{" "}
+        ¿Aún no tenés una cuenta en Andamiarte?{" "}
         <Link to="/registro" className="font-semibold text-primary hover:underline">
           Registrate acá
         </Link>

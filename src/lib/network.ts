@@ -25,9 +25,9 @@ export const applicationOptions = queryOptions({
 export function pageHead(title: string, description: string) {
   return {
     meta: [
-      { title: `${title} · ACOMPAÑAME` },
+      { title: `${title} · Andamiarte` },
       { name: "description", content: description },
-      { property: "og:title", content: `${title} · ACOMPAÑAME` },
+      { property: "og:title", content: `${title} · Andamiarte` },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

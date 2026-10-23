@@ -65,7 +65,7 @@ export function GoogleAuthButton({
 
                 toast.success(
                   res.data?.isNewUser
-                    ? "¡Bienvenido/a a ACOMPAÑAME!"
+                    ? "¡Bienvenido/a a Andamiarte!"
                     : "¡Sesión iniciada con Google!"
                 );
 

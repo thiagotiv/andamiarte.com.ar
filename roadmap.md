@@ -1,4 +1,4 @@
-# ACOMPAÑAME
+# ANDAMIARTE
 - [x] Brand system and landing page
 - [x] Secure email/Google accounts and private role-specific profiles
 - [x] Community posts

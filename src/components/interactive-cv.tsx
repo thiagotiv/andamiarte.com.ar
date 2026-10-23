@@ -140,7 +140,7 @@ export function InteractiveCv({
   const acceptedConnections = networkData?.accepted ?? [];
   const [selectedContactId, setSelectedContactId] = useState("");
   const [requestMessage, setRequestMessage] = useState(
-    "Hola, ¿podrías dejarme una recomendación formal en mi CV interactivo de ACOMPAÑAME sobre el trabajo que realizamos juntos?",
+    "Hola, ¿podrías dejarme una recomendación formal en mi CV interactivo de Andamiarte sobre el trabajo que realizamos juntos?",
   );
   const [requestingBusy, setRequestingBusy] = useState(false);
 

@@ -1486,7 +1486,7 @@ function Community() {
                 <span>•</span>
                 <Link to="/configuracion-privacidad" className="hover:underline">Privacidad</Link>
               </div>
-              <p>© 2026 ACOMPAÑAME / ANDAMIARTE · Red de Inclusión Escolar</p>
+              <p>© 2026 Andamiarte · Red de Inclusión Escolar</p>
             </footer>
           </aside>
         </div>

@@ -1,7 +1,7 @@
-# Acompañame: Red de Inclusión
+# Andamiarte: Red de Inclusión Escolar
 
 Contexto del Proyecto:
-Actúa como un desarrollador Full-Stack experto y un diseñador UX/UI. Construye una aplicación web llamada "ACOMPAÑAME", una red profesional y bolsa de trabajo especializada en Inclusión Escolar (Acompañantes Externos, Centros Educativos y Familias).
+Andamiarte es una red profesional y bolsa de trabajo especializada en Inclusión Escolar (Acompañantes de Inclusión Escolar - AIE, Centros Educativos y Familias).
 
 Identidad Visual y Diseño (UI/UX):
 

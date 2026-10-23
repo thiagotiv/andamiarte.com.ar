@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/lib/network";
 export const Route = createFileRoute("/reset-password")({
-  head: () => pageHead("Recuperar contraseña", "Recuperá el acceso seguro a tu cuenta ACOMPAÑAME."),
+  head: () => pageHead("Recuperar contraseña", "Recuperá el acceso seguro a tu cuenta Andamiarte."),
   component: Reset,
 });
 function Reset() {

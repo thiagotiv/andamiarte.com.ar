@@ -29,7 +29,7 @@ export const Route = createFileRoute("/_authenticated/mensajes")({
   head: () =>
     pageHead(
       "Mensajes privados",
-      "Conversaciones seguras entre profesionales, centros y familias de ACOMPAÑAME.",
+      "Conversaciones seguras entre profesionales, centros y familias de Andamiarte.",
     ),
   component: Messages,
   errorComponent: RouteError,

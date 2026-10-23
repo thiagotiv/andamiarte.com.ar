@@ -54,6 +54,7 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: var(--font-sans);
+  overflow-x: hidden;
 }
 button,
 a,
@@ -94,6 +95,12 @@ button {
   font-size: 23px;
   font-weight: 800;
   color: var(--primary);
+}
+.brand img {
+  height: 40px;
+  max-height: 44px;
+  width: auto;
+  object-fit: contain;
 }
 .brand-mark {
   width: 35px;
@@ -326,6 +333,10 @@ button {
 }
 .footer .brand {
   font-size: 17px;
+}
+.footer .brand img {
+  height: 32px;
+  max-height: 36px;
 }
 .page {
   max-width: 1200px;
