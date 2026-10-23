@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleAuthButton } from "@/components/google-auth-button";
@@ -38,6 +38,15 @@ function Login() {
     }
   }, [user, navigate, search.redirect]);
 
+  const handleGoogleSuccess = useCallback(async () => {
+    const target = search.redirect || "/comunidad";
+    await navigate({ to: target as any });
+  }, [search.redirect, navigate]);
+
+  const handleGoogleError = useCallback((err: Error) => {
+    setError(err.message);
+  }, []);
+
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -54,13 +63,22 @@ function Login() {
 
       if (result.error) {
         const errorMsg = result.error.message.toLowerCase();
-        if (errorMsg.includes("email not confirmed")) {
+        if (
+          errorMsg.includes("email not confirmed") ||
+          errorMsg.includes("no fue verificado") ||
+          errorMsg.includes("no fue verificada") ||
+          errorMsg.includes("verificación")
+        ) {
           setUnconfirmedEmail(cleanEmail);
-          setError("Tu correo aún no fue verificado. Ingresá el código de 6 dígitos enviado a tu casilla.");
+          setError("Tu correo aún no fue verificado. Ingresá el código de 6 dígitos que enviamos a tu casilla.");
           toast.info("Por favor verificá tu cuenta para poder ingresar.");
           return;
         }
-        if (errorMsg.includes("invalid login credentials")) {
+        if (
+          errorMsg.includes("invalid login credentials") ||
+          errorMsg.includes("credenciales inválidas") ||
+          errorMsg.includes("no son correctos")
+        ) {
           setError("El correo o la contraseña ingresados no son correctos.");
           return;
         }
@@ -170,11 +188,8 @@ function Login() {
       <GoogleAuthButton
         text="continue_with"
         disabled={busy}
-        onSuccess={async () => {
-          const target = search.redirect || "/comunidad";
-          await navigate({ to: target as any });
-        }}
-        onError={(err) => setError(err.message)}
+        onSuccess={handleGoogleSuccess}
+        onError={handleGoogleError}
       />
 
       <div className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">

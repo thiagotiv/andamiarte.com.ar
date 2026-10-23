@@ -1,4 +1,12 @@
-import { mongoSignUpFn, mongoSignInFn, mongoGoogleAuthFn, mongoSignOutFn, mongoCrudFn } from "./api-mongo";
+import {
+  mongoSignUpFn,
+  mongoSignInFn,
+  mongoGoogleAuthFn,
+  mongoSignOutFn,
+  mongoCrudFn,
+  mongoVerifyOtpFn,
+  mongoResendOtpFn,
+} from "./api-mongo";
 
 export type AuthListener = (event: string, session: any) => void;
 
@@ -60,6 +68,14 @@ export const mongoAuth = {
           zone: options?.data?.["zone"] as string | undefined,
         },
       });
+
+      // Si requiere verificación previa, no iniciamos sesión en el cliente todavía
+      if ((res as any).requiresVerification || !res.token) {
+        return {
+          data: { user: res.user, session: null },
+          error: null,
+        };
+      }
 
       const session = {
         access_token: res.token,
@@ -181,16 +197,66 @@ export const mongoAuth = {
     return { error: null };
   },
 
-  async verifyOtp(_params: { email?: string; token?: string; type?: string; token_hash?: string }) {
-    const { user, token } = getStoredSession();
-    return {
-      data: { user, session: { access_token: token, user } },
-      error: null as { message: string } | null,
-    };
+  async verifyOtp(params: { email?: string; token?: string; type?: string; token_hash?: string }) {
+    try {
+      const email = (params.email || "").trim().toLowerCase();
+      const code = (params.token || params.token_hash || "").trim();
+      if (!email || !code) {
+        return {
+          data: { user: null, session: null },
+          error: { message: "Se requiere correo electrónico y código de verificación." },
+        };
+      }
+
+      const res = await mongoVerifyOtpFn({
+        data: { email, code },
+      });
+
+      const session = {
+        access_token: res.token,
+        token_type: "bearer",
+        user: res.user,
+      };
+
+      setStoredSession(res.user, res.token);
+      notifyAuthListeners("SIGNED_IN", session);
+
+      return {
+        data: { user: res.user, session },
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        data: { user: null, session: null },
+        error: { message: err?.message || "Error al verificar el código" },
+      };
+    }
   },
 
-  async resend(_params: { email?: string; type?: string; options?: any }) {
-    return { data: null, error: null as { message: string } | null };
+  async resend(params: { email?: string; type?: string; options?: any }) {
+    try {
+      const email = (params.email || "").trim().toLowerCase();
+      if (!email) {
+        return {
+          data: null,
+          error: { message: "Se requiere correo electrónico para reenviar el código." },
+        };
+      }
+
+      const res = await mongoResendOtpFn({
+        data: { email },
+      });
+
+      return {
+        data: res,
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        data: null,
+        error: { message: err?.message || "Error al reenviar el código" },
+      };
+    }
   },
 
   async resetPasswordForEmail(_email: string, _options?: any) {

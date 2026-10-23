@@ -5,6 +5,8 @@ import {
   loginOrRegisterWithGoogle,
   verifyToken,
   getMongoUserById,
+  verifyMongoOtp,
+  resendMongoOtp,
 } from "./auth-mongo";
 import { getDb, initMongoIndexes } from "./mongodb";
 
@@ -74,7 +76,43 @@ export const mongoSignUpFn = createServerFn({ method: "POST" })
     }
     try {
       const res = await registerMongoUser(data);
+      if (res.token) {
+        await setSessionCookie(res.token);
+      }
+      return res;
+    } catch (err: any) {
+      throw formatMongoError(err);
+    }
+  });
+
+export const mongoVerifyOtpFn = createServerFn({ method: "POST" })
+  .validator((d: { email: string; code: string }) => ({
+    email: String(d.email || ""),
+    code: String(d.code || ""),
+  }))
+  .handler(async ({ data }) => {
+    if (!data.email || !data.code) {
+      throw new Error("El correo y el código de verificación son requeridos.");
+    }
+    try {
+      const res = await verifyMongoOtp(data);
       await setSessionCookie(res.token);
+      return res;
+    } catch (err: any) {
+      throw formatMongoError(err);
+    }
+  });
+
+export const mongoResendOtpFn = createServerFn({ method: "POST" })
+  .validator((d: { email: string }) => ({
+    email: String(d.email || ""),
+  }))
+  .handler(async ({ data }) => {
+    if (!data.email) {
+      throw new Error("El correo electrónico es requerido para reenviar el código.");
+    }
+    try {
+      const res = await resendMongoOtp(data);
       return res;
     } catch (err: any) {
       throw formatMongoError(err);

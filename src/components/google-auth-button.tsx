@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { mongoAuth } from "@/lib/mongo-client-adapter";
 import { loadGoogleScript, getGoogleClientId } from "@/lib/google-auth";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ interface GoogleAuthButtonProps {
   disabled?: boolean;
 }
 
-export function GoogleAuthButton({
+export const GoogleAuthButton = memo(function GoogleAuthButton({
   role = "aie",
   text = "continue_with",
   onSuccess,
@@ -22,6 +22,18 @@ export function GoogleAuthButton({
   disabled = false,
 }: GoogleAuthButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef<boolean>(false);
+  const roleRef = useRef(role);
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+
+  // Mantener los refs actualizados con las props más recientes
+  useEffect(() => {
+    roleRef.current = role;
+    onSuccessRef.current = onSuccess;
+    onErrorRef.current = onError;
+  }, [role, onSuccess, onError]);
+
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [clientId, setClientId] = useState<string>("");
@@ -30,9 +42,12 @@ export function GoogleAuthButton({
     let isMounted = true;
 
     async function init() {
+      // Evitar re-inicialización si ya fue montado y renderizado
+      if (initializedRef.current) return;
+
       try {
         const id = await getGoogleClientId();
-        if (!isMounted) return;
+        if (!isMounted || initializedRef.current) return;
         setClientId(id);
 
         if (!id) {
@@ -41,64 +56,73 @@ export function GoogleAuthButton({
         }
 
         await loadGoogleScript();
-        if (!isMounted) return;
+        if (!isMounted || initializedRef.current) return;
 
         if (window.google?.accounts?.id && containerRef.current) {
-          window.google.accounts.id.initialize({
-            client_id: id,
-            callback: async (response) => {
-              if (!response?.credential) {
-                const err = new Error("No se recibió credencial de Google");
-                onError?.(err);
-                return;
-              }
-              setLoading(true);
-              try {
-                const res = await mongoAuth.signInWithGoogle({
-                  credential: response.credential,
-                  role,
-                });
-
-                if (res.error) {
-                  throw new Error(res.error.message);
+          try {
+            window.google.accounts.id.initialize({
+              client_id: id,
+              callback: async (response) => {
+                if (!response?.credential) {
+                  const err = new Error("No se recibió credencial de Google");
+                  onErrorRef.current?.(err);
+                  return;
                 }
+                setLoading(true);
+                try {
+                  const res = await mongoAuth.signInWithGoogle({
+                    credential: response.credential,
+                    role: roleRef.current,
+                  });
 
-                toast.success(
-                  res.data?.isNewUser
-                    ? "¡Bienvenido/a a Andamiarte!"
-                    : "¡Sesión iniciada con Google!"
-                );
+                  if (res.error) {
+                    throw new Error(res.error.message);
+                  }
 
-                onSuccess?.({
-                  user: res.data?.user,
-                  isNewUser: Boolean(res.data?.isNewUser),
-                });
-              } catch (err: any) {
-                const e = err instanceof Error ? err : new Error(String(err));
-                toast.error(e.message || "Error al autenticarse con Google");
-                onError?.(e);
-              } finally {
-                setLoading(false);
-              }
-            },
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
+                  toast.success(
+                    res.data?.isNewUser
+                      ? "¡Bienvenido/a a Andamiarte!"
+                      : "¡Sesión iniciada con Google!"
+                  );
 
-          // Renderizar botón oficial de Google con diseño nativo y adaptado
-          containerRef.current.innerHTML = "";
-          window.google.accounts.id.renderButton(containerRef.current, {
-            type: "standard",
-            theme: "outline",
-            size: "large",
-            text,
-            shape: "rectangular",
-            logo_alignment: "left",
-            width: 320,
-            locale: "es",
-          });
+                  onSuccessRef.current?.({
+                    user: res.data?.user,
+                    isNewUser: Boolean(res.data?.isNewUser),
+                  });
+                } catch (err: any) {
+                  const e = err instanceof Error ? err : new Error(String(err));
+                  toast.error(e.message || "Error al autenticarse con Google");
+                  onErrorRef.current?.(e);
+                } finally {
+                  setLoading(false);
+                }
+              },
+              auto_select: false,
+              cancel_on_tap_outside: true,
+            });
 
-          setSdkReady(true);
+            // Renderizar botón oficial de Google con diseño nativo y adaptado
+            if (containerRef.current) {
+              containerRef.current.innerHTML = "";
+              window.google.accounts.id.renderButton(containerRef.current, {
+                type: "standard",
+                theme: "outline",
+                size: "large",
+                text,
+                shape: "rectangular",
+                logo_alignment: "left",
+                width: 320,
+                locale: "es",
+              });
+            }
+
+            initializedRef.current = true;
+            if (isMounted) {
+              setSdkReady(true);
+            }
+          } catch (initErr: any) {
+            console.warn("[Google Auth] Error al inicializar renderButton de Google:", initErr);
+          }
         }
       } catch (err: any) {
         console.warn("[Google Auth] Error cargando SDK de Google:", err);
@@ -110,7 +134,7 @@ export function GoogleAuthButton({
     return () => {
       isMounted = false;
     };
-  }, [role, text, onSuccess, onError]);
+  }, [text]);
 
   // Click manual en caso de que el iframe de Google no se haya renderizado o en desarrollo
   async function handleManualClick() {
@@ -124,18 +148,18 @@ export function GoogleAuthButton({
           const mockToken = `dev-mock-google-token:google-test-sub-${Date.now()}:test.google@andamiarte.com:Usuario Google Test`;
           const res = await mongoAuth.signInWithGoogle({
             credential: mockToken,
-            role,
+            role: roleRef.current,
           });
           if (res.error) throw new Error(res.error.message);
 
           toast.success("Autenticación de prueba con Google exitosa (Modo Dev)");
-          onSuccess?.({
+          onSuccessRef.current?.({
             user: res.data?.user,
             isNewUser: Boolean(res.data?.isNewUser),
           });
         } catch (err: any) {
           toast.error(err.message);
-          onError?.(err);
+          onErrorRef.current?.(err);
         } finally {
           setLoading(false);
         }
@@ -149,7 +173,11 @@ export function GoogleAuthButton({
     }
 
     if (window.google?.accounts?.id) {
-      window.google.accounts.id.prompt();
+      try {
+        window.google.accounts.id.prompt();
+      } catch (promptErr) {
+        console.warn("[Google Auth] Error en prompt():", promptErr);
+      }
     } else {
       toast.info("Cargando servicios de Google, intentá en un instante...");
     }
@@ -201,4 +229,4 @@ export function GoogleAuthButton({
       )}
     </div>
   );
-}
+});

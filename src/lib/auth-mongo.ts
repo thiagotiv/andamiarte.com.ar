@@ -2,8 +2,13 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { getCollection, initMongoIndexes } from "./mongodb";
+import { sendOtpVerificationEmail } from "./email";
 
 const googleAuthClient = new OAuth2Client();
+
+export function generateOtpCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 function getJwtSecret(): string {
   const secret = process.env["JWT_SECRET"];
@@ -75,13 +80,20 @@ export async function registerMongoUser({
   const now = new Date().toISOString();
   const userName = name?.trim() || normalizedEmail.split("@")[0];
 
-  // 1. Guardar usuario
+  // Generar código OTP de 6 dígitos numéricos y expiración a 10 minutos
+  const verificationCode = generateOtpCode();
+  const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  // 1. Guardar usuario con verificación pendiente
   await usersColl.insertOne({
     _id: userId,
     id: userId,
     email: normalizedEmail,
     password_hash: passwordHash,
-    verified: true, // Modo simplificado: usuario verificado directamente
+    isVerified: false,
+    verified: false,
+    verificationCode,
+    codeExpiresAt,
     created_at: now,
     updated_at: now,
   });
@@ -127,14 +139,16 @@ export async function registerMongoUser({
     created_at: now,
   });
 
-  const payload: MongoUserPayload = {
-    id: userId,
-    email: normalizedEmail,
-    role,
-    name: userName,
-  };
-
-  const token = generateToken(payload);
+  // 4. Enviar correo transaccional de verificación con Resend
+  try {
+    await sendOtpVerificationEmail({
+      email: normalizedEmail,
+      code: verificationCode,
+      name: userName,
+    });
+  } catch (emailErr) {
+    console.error("[Email Verification] Error al enviar código:", emailErr);
+  }
 
   return {
     user: {
@@ -142,8 +156,10 @@ export async function registerMongoUser({
       email: normalizedEmail,
       role,
       name: userName,
+      isVerified: false,
     },
-    token,
+    token: null,
+    requiresVerification: true,
   };
 }
 
@@ -166,6 +182,14 @@ export async function loginMongoUser({
   const validPassword = await comparePassword(password, user["password_hash"]);
   if (!validPassword) {
     throw new Error("Credenciales inválidas. Comprobá tu correo y contraseña.");
+  }
+
+  // Validación de verificación de correo
+  const isVerified = user["isVerified"] ?? user["verified"] ?? false;
+  if (!isVerified) {
+    throw new Error(
+      "Tu correo aún no fue verificado. Ingresá el código de 6 dígitos que enviamos a tu casilla para activar tu cuenta."
+    );
   }
 
   const userId = user["id"] || user["_id"];
@@ -193,9 +217,124 @@ export async function loginMongoUser({
       email: user["email"],
       role,
       name,
+      isVerified: true,
     },
     token,
   };
+}
+
+export async function verifyMongoOtp({
+  email,
+  code,
+}: {
+  email: string;
+  code: string;
+}) {
+  await initMongoIndexes();
+  const normalizedEmail = email.trim().toLowerCase();
+  const cleanCode = code.trim();
+  const usersColl = await getCollection<any>("users");
+  const user = await usersColl.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    throw new Error("No encontramos ninguna cuenta asociada a este correo electrónico.");
+  }
+
+  const userId = user["id"] || user["_id"];
+  const profilesColl = await getCollection<any>("profiles");
+  const profile = await profilesColl.findOne({ $or: [{ id: userId }, { _id: userId }] });
+  const rolesColl = await getCollection<any>("user_roles");
+  const userRole = await rolesColl.findOne({ user_id: userId });
+  const role = userRole?.["role"] || profile?.["role"] || "aie";
+  const name = profile?.["name"] || normalizedEmail.split("@")[0];
+
+  // Si ya estaba verificado previamente
+  if (user["isVerified"] === true) {
+    const token = generateToken({ id: userId, email: normalizedEmail, role, name });
+    return {
+      user: { id: userId, email: normalizedEmail, role, name, isVerified: true },
+      token,
+    };
+  }
+
+  if (!user["verificationCode"]) {
+    throw new Error("No hay un código de verificación activo. Por favor solicitá un nuevo código.");
+  }
+
+  if (String(user["verificationCode"]).trim() !== cleanCode) {
+    throw new Error("El código de 6 dígitos ingresado es incorrecto.");
+  }
+
+  const now = new Date();
+  if (user["codeExpiresAt"] && new Date(user["codeExpiresAt"]) < now) {
+    throw new Error("El código de verificación ha expirado (validez de 10 minutos). Solicitá un nuevo código.");
+  }
+
+  // Al validar con éxito: actualiza a isVerified: true y elimina verificationCode y codeExpiresAt
+  await usersColl.updateOne(
+    { _id: user["_id"] },
+    {
+      $set: {
+        isVerified: true,
+        verified: true,
+        updated_at: now.toISOString(),
+      },
+      $unset: {
+        verificationCode: "",
+        codeExpiresAt: "",
+      },
+    }
+  );
+
+  const token = generateToken({ id: userId, email: normalizedEmail, role, name });
+
+  return {
+    user: { id: userId, email: normalizedEmail, role, name, isVerified: true },
+    token,
+  };
+}
+
+export async function resendMongoOtp({ email }: { email: string }) {
+  await initMongoIndexes();
+  const normalizedEmail = email.trim().toLowerCase();
+  const usersColl = await getCollection<any>("users");
+  const user = await usersColl.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    throw new Error("No encontramos ninguna cuenta registrada con este correo electrónico.");
+  }
+
+  if (user["isVerified"] === true) {
+    return { success: true, message: "Tu cuenta ya está verificada. Podés iniciar sesión normalmente." };
+  }
+
+  const newCode = generateOtpCode();
+  const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const now = new Date().toISOString();
+
+  await usersColl.updateOne(
+    { _id: user["_id"] },
+    {
+      $set: {
+        verificationCode: newCode,
+        codeExpiresAt,
+        updated_at: now,
+      },
+    }
+  );
+
+  const userId = user["id"] || user["_id"];
+  const profilesColl = await getCollection<any>("profiles");
+  const profile = await profilesColl.findOne({ $or: [{ id: userId }, { _id: userId }] });
+  const userName = profile?.["name"] || normalizedEmail.split("@")[0];
+
+  await sendOtpVerificationEmail({
+    email: normalizedEmail,
+    code: newCode,
+    name: userName,
+  });
+
+  return { success: true };
 }
 
 export async function getMongoUserById(userId: string) {
@@ -304,8 +443,10 @@ export async function loginOrRegisterWithGoogle({
   if (existingUser) {
     userId = existingUser["id"] || existingUser["_id"];
 
-    // Actualizar último login y vincular google_id si aún no estaba vinculado
+    // Actualizar último login y asegurar estado verificado por Google
     const updateFields: Record<string, any> = {
+      isVerified: true,
+      verified: true,
       last_login: now,
       updated_at: now,
     };
@@ -353,6 +494,7 @@ export async function loginOrRegisterWithGoogle({
       name: userName,
       picture: googleData.picture || null,
       auth_provider: "google",
+      isVerified: true,
       verified: true,
       last_login: now,
       created_at: now,

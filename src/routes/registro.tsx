@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { ArrowRight, ShieldCheck, Mail, Lock, User, MapPin, Building2, HeartHandshake, GraduationCap, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleAuthButton } from "@/components/google-auth-button";
@@ -40,26 +40,49 @@ function Registro() {
     if (user) void navigate({ to: "/comunidad" });
   }, [user, navigate]);
 
+  const handleGoogleSuccess = useCallback(async () => {
+    await navigate({ to: "/comunidad" });
+  }, [navigate]);
+
+  const handleGoogleError = useCallback((err: Error) => {
+    setError(err.message);
+  }, []);
+
   async function handleRegister(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError("");
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
     const cleanZone = zone.trim();
 
-    if (!acceptedTerms) {
-      setError("Debes aceptar los Términos y Condiciones y la Política de Privacidad para registrarte.");
-      setBusy(false);
+    console.log("Iniciando registro manual para:", cleanEmail || email);
+
+    if (!role) {
+      toast.error("Por favor, selecciona tu rol");
+      setError("Por favor, selecciona tu rol.");
       return;
     }
 
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
-      setBusy(false);
+    if (!cleanEmail) {
+      toast.error("Por favor, ingresa tu correo electrónico");
+      setError("Por favor, ingresa tu correo electrónico.");
       return;
     }
+
+    if (!acceptedTerms) {
+      toast.error("Debes aceptar los Términos y la Política de Privacidad");
+      setError("Debes aceptar los Términos y la Política de Privacidad.");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("La contraseña debe tener al menos 6 caracteres");
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    setBusy(true);
 
     try {
       const result = await supabase.auth.signUp({
@@ -88,12 +111,15 @@ function Registro() {
         toast.success("¡Cuenta creada con éxito!");
         await navigate({ to: "/comunidad" });
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "No pudimos crear tu cuenta. Intentá nuevamente.";
-      if (msg.toLowerCase().includes("user already registered")) {
+    } catch (err: any) {
+      console.error("Error en registro manual:", err);
+      const msg = err instanceof Error ? err.message : "No se pudo registrar la cuenta";
+      if (msg.toLowerCase().includes("user already registered") || msg.toLowerCase().includes("ya existe una cuenta")) {
         setError("Ya existe un usuario registrado con este correo. Podés iniciar sesión.");
+        toast.error("Ya existe una cuenta con este correo. Podés iniciar sesión.");
       } else {
         setError(msg);
+        toast.error(msg || "No se pudo registrar la cuenta");
       }
     } finally {
       setBusy(false);
@@ -222,9 +248,8 @@ function Registro() {
             <input
               className="field field-icon-left field-icon-right w-full"
               type={showPassword ? "text" : "password"}
-              minLength={8}
-              required
-              placeholder="Mínimo 8 caracteres"
+              minLength={6}
+              placeholder="Mínimo 6 caracteres"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
@@ -240,7 +265,7 @@ function Registro() {
             </button>
           </div>
           <small className="text-xs text-muted-foreground">
-            Al menos 8 caracteres para mantener segura tu cuenta.
+            Al menos 6 caracteres para mantener segura tu cuenta.
           </small>
         </label>
 
@@ -248,7 +273,6 @@ function Registro() {
           <input
             id="terms-checkbox"
             type="checkbox"
-            required
             checked={acceptedTerms}
             onChange={(e) => setAcceptedTerms(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary shrink-0"
@@ -266,7 +290,7 @@ function Registro() {
           </label>
         </div>
 
-        <Button variant="cta" size="lg" type="submit" disabled={busy || !acceptedTerms} className="mt-3 w-full">
+        <Button variant="cta" size="lg" type="submit" disabled={busy} className="mt-3 w-full">
           {busy ? "Creando cuenta…" : "Registrarme y recibir código"}
           <ArrowRight className="ml-1" size={18} />
         </Button>
@@ -278,10 +302,8 @@ function Registro() {
         role={role}
         text="signup_with"
         disabled={busy}
-        onSuccess={async () => {
-          await navigate({ to: "/comunidad" });
-        }}
-        onError={(err) => setError(err.message)}
+        onSuccess={handleGoogleSuccess}
+        onError={handleGoogleError}
       />
 
       <p className="mt-3 text-center text-xs text-muted-foreground">

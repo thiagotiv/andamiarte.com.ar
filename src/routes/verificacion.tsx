@@ -35,52 +35,21 @@ function Verificacion() {
   const { user } = useSession();
   const navigate = useNavigate();
 
-  // If already logged in (e.g. clicked confirmation link directly), redirect to feed
+  // Si ya tiene sesión activa validada, redirigir
   useEffect(() => {
-    if (!user || busy) {
+    if (!user || busy || !user.email) {
       return undefined;
     }
-    toast.success("¡Tu sesión se encuentra activa!");
+    // Si el usuario ya está autenticado con sesión válida
     const timer = setTimeout(() => {
       void navigate({ to: "/comunidad" });
-    }, 1000);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [user, navigate, busy]);
 
-  // Handle URL token_hash or hash fragment if present (magic link click)
+  // Manejo de temporizador de cooldown (60s)
   useEffect(() => {
-    const handleUrlHash = async () => {
-      const hashParams = new URLSearchParams(window.location.hash.slice(1));
-      const tokenHash = hashParams.get("token_hash") || new URLSearchParams(window.location.search).get("token_hash");
-      const type = (hashParams.get("type") || "signup") as any;
-
-      if (tokenHash) {
-        setBusy(true);
-        try {
-          const { error: verifyErr } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type,
-          });
-          if (verifyErr) throw verifyErr;
-          setSuccess(true);
-          toast.success("¡Correo verificado con éxito!");
-          setTimeout(() => void navigate({ to: "/comunidad" }), 1500);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "El enlace de verificación ha expirado o no es válido.");
-        } finally {
-          setBusy(false);
-        }
-      }
-    };
-
-    void handleUrlHash();
-  }, [navigate]);
-
-  // Cooldown countdown effect
-  useEffect(() => {
-    if (resendCooldown <= 0) {
-      return undefined;
-    }
+    if (resendCooldown <= 0) return undefined;
     const timer = setInterval(() => {
       setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -106,29 +75,18 @@ function Verificacion() {
     setError("");
 
     try {
-      // First attempt with type 'signup'
-      let result = await supabase.auth.verifyOtp({
+      const result = await supabase.auth.verifyOtp({
         email: targetEmail,
         token: code,
         type: "signup",
       });
 
-      // If 'signup' fails because it might be 'email' OTP or email_change
-      if (result.error && (result.error.message.includes("type") || result.error.message.includes("Token is invalid"))) {
-        const fallback = await supabase.auth.verifyOtp({
-          email: targetEmail,
-          token: code,
-          type: "email",
-        });
-        if (!fallback.error) {
-          result = fallback;
-        }
+      if (result.error) {
+        throw new Error(result.error.message);
       }
 
-      if (result.error) throw result.error;
-
       setSuccess(true);
-      toast.success("¡Tu cuenta ha sido activada!");
+      toast.success("¡Cuenta activada con éxito!");
       setTimeout(() => {
         void navigate({ to: "/comunidad" });
       }, 1500);
@@ -158,12 +116,9 @@ function Verificacion() {
       const result = await supabase.auth.resend({
         type: "signup",
         email: targetEmail,
-        options: {
-          emailRedirectTo: `${window.location.origin}/verificacion`,
-        },
       });
 
-      if (result.error) throw result.error;
+      if (result.error) throw new Error(result.error.message);
 
       setResendCooldown(60);
       toast.success(`Nuevo código enviado a ${targetEmail}`);
@@ -179,143 +134,171 @@ function Verificacion() {
   }
 
   return (
-    <main className="auth-page max-w-md mx-auto">
-      <div className="eyebrow mb-2">
-        <ShieldCheck size={16} /> Verificación Segura
-      </div>
-      <h1>Verificá tu correo electrónico</h1>
-      <p>
-        Te enviamos un código de 6 dígitos para validar tu identidad y activar todas las funciones de la red.
-      </p>
+    <main className="w-full min-h-screen bg-[#fbf5ee] py-12 md:py-16 px-4 flex items-center justify-center">
+      <div className="w-full max-w-md mx-auto">
+        <article className="bg-white/90 backdrop-blur-sm border border-stone-200/70 rounded-3xl p-6 sm:p-8 md:p-10 shadow-sm space-y-6">
+          {/* Encabezado */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/70 border border-emerald-300/60 text-[#1d3d29] text-xs font-bold uppercase tracking-wider">
+              <ShieldCheck size={14} /> Verificación de Cuenta
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1d3d29] tracking-tight">
+              Verificá tu correo electrónico
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
+              Ingresá el código de 6 dígitos que enviamos a{" "}
+              <strong className="text-[#1d3d29] font-semibold break-all">
+                {email || "tu correo"}
+              </strong>{" "}
+              para activar tu cuenta.
+            </p>
+          </div>
 
-      {/* Email Indicator Card */}
-      <div className="mt-6 mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <MailCheck className="h-5 w-5 shrink-0 text-primary" />
-            {isEditingEmail ? (
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                className="field text-sm py-1.5 px-2.5 w-full"
-                autoFocus
-              />
-            ) : (
-              <div className="min-w-0">
-                <span className="block text-xs text-muted-foreground">Enviado a:</span>
-                <span className="block text-sm font-semibold text-foreground truncate">{email || "Sin correo"}</span>
+          {/* Tarjeta de visualización y edición del correo */}
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <MailCheck className="h-5 w-5 shrink-0 text-[#1d3d29]" />
+                {isEditingEmail ? (
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full text-xs sm:text-sm rounded-lg border border-stone-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1d3d29]"
+                    autoFocus
+                  />
+                ) : (
+                  <div className="min-w-0">
+                    <span className="block text-[10px] uppercase font-bold text-stone-400 tracking-wider">
+                      Destinatario:
+                    </span>
+                    <span className="block text-xs sm:text-sm font-semibold text-stone-800 truncate">
+                      {email || "Sin correo especificado"}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingEmail(!isEditingEmail)}
+                className="text-xs shrink-0 text-[#1d3d29] hover:bg-stone-200/50 rounded-lg px-2.5 h-8"
+              >
+                {isEditingEmail ? (
+                  "Listo"
+                ) : (
+                  <>
+                    <Edit3 size={13} className="mr-1" /> Cambiar
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsEditingEmail(!isEditingEmail)}
-            className="text-xs shrink-0 text-primary"
-          >
-            {isEditingEmail ? "Guardar" : <><Edit3 size={13} className="mr-1" /> Cambiar</>}
-          </Button>
-        </div>
-      </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-        >
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
-            <p className="font-medium">{error}</p>
-          </div>
-        </div>
-      )}
+          {/* Mensaje de error */}
+          {error && (
+            <div
+              role="alert"
+              className="rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs sm:text-sm text-red-800 flex items-start gap-2.5"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+              <p className="font-medium leading-relaxed">{error}</p>
+            </div>
+          )}
 
-      {success ? (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center text-green-900">
-          <CheckCircle2 className="mx-auto h-10 w-10 text-green-600 mb-2" />
-          <h3 className="text-lg font-bold">¡Cuenta verificada exitosamente!</h3>
-          <p className="mt-1 text-sm text-green-800">
-            Te estamos redirigiendo a la comunidad de Andamiarte...
-          </p>
-        </div>
-      ) : (
-        <form
-          className="flex flex-col items-center gap-6"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            void handleVerify();
-          }}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Código de 6 dígitos
-            </span>
-            <InputOTP
-              maxLength={6}
-              value={otp}
-              onChange={(val) => {
-                setOtp(val);
-                if (val.length === 6) {
-                  void handleVerify(val);
-                }
+          {/* Estado de éxito */}
+          {success ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-6 text-center text-emerald-950 space-y-2">
+              <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600 animate-bounce" />
+              <h3 className="text-lg font-bold">¡Cuenta verificada exitosamente!</h3>
+              <p className="text-xs sm:text-sm text-emerald-800">
+                Iniciando sesión de forma segura y redirigiéndote a la comunidad de Andamiarte...
+              </p>
+            </div>
+          ) : (
+            <form
+              className="space-y-6"
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                void handleVerify();
               }}
-              disabled={busy}
-              autoFocus
             >
-              <InputOTPGroup>
-                <InputOTPSlot index={0} />
-                <InputOTPSlot index={1} />
-                <InputOTPSlot index={2} />
-              </InputOTPGroup>
-              <InputOTPSeparator />
-              <InputOTPGroup>
-                <InputOTPSlot index={3} />
-                <InputOTPSlot index={4} />
-                <InputOTPSlot index={5} />
-              </InputOTPGroup>
-            </InputOTP>
-          </div>
+              {/* Input OTP segmentado */}
+              <div className="flex flex-col items-center gap-2.5">
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
+                  Código de 6 dígitos
+                </label>
+                <InputOTP
+                  maxLength={6}
+                  value={otp}
+                  onChange={(val) => {
+                    setOtp(val);
+                    if (val.length === 6) {
+                      void handleVerify(val);
+                    }
+                  }}
+                  disabled={busy}
+                  autoFocus
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                    <InputOTPSlot index={1} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                    <InputOTPSlot index={2} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                  </InputOTPGroup>
+                  <InputOTPSeparator />
+                  <InputOTPGroup>
+                    <InputOTPSlot index={3} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                    <InputOTPSlot index={4} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                    <InputOTPSlot index={5} className="w-10 h-12 text-lg font-bold text-[#1d3d29]" />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
 
-          <Button
-            variant="cta"
-            size="lg"
-            type="submit"
-            disabled={busy || otp.length !== 6}
-            className="w-full"
-          >
-            {busy ? "Verificando código…" : "Verificar y Activar Cuenta"}
-            <ArrowRight className="ml-1" size={18} />
-          </Button>
+              {/* Botón principal */}
+              <Button
+                variant="cta"
+                size="lg"
+                type="submit"
+                disabled={busy || otp.length !== 6}
+                className="w-full h-11 text-sm font-bold bg-[#1d3d29] hover:bg-[#142b1d] text-white rounded-xl shadow-xs"
+              >
+                {busy && <RotateCw className="mr-2 h-4 w-4 animate-spin" />}
+                {busy ? "Verificando código…" : "Verificar y Activar Cuenta"}
+                {!busy && <ArrowRight className="ml-1.5" size={17} />}
+              </Button>
 
-          <div className="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
-            <p>¿No recibiste el correo? Revisá la carpeta de Spam o Correo no deseado.</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={resendBusy || resendCooldown > 0}
-              onClick={handleResendCode}
-              className="mt-1"
-            >
-              <RotateCw className={`mr-1.5 h-3.5 w-3.5 ${resendBusy ? "animate-spin" : ""}`} />
-              {resendCooldown > 0
-                ? `Reenviar código en ${resendCooldown}s`
-                : resendBusy
-                  ? "Enviando…"
-                  : "Reenviar código por correo"}
-            </Button>
-          </div>
-        </form>
-      )}
+              {/* Reenvío de código y ayuda */}
+              <div className="flex flex-col items-center gap-2 text-center text-xs text-stone-500 pt-2 border-t border-stone-200/80">
+                <p>¿No recibiste el correo? Revisá también en la carpeta de Spam o Correo no deseado.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={resendBusy || resendCooldown > 0}
+                  onClick={handleResendCode}
+                  className="rounded-xl text-xs font-semibold text-stone-700 hover:text-[#1d3d29] h-8 px-3"
+                >
+                  <RotateCw className={`mr-1.5 h-3.5 w-3.5 ${resendBusy ? "animate-spin" : ""}`} />
+                  {resendCooldown > 0
+                    ? `Reenviar código en ${resendCooldown}s`
+                    : resendBusy
+                      ? "Enviando…"
+                      : "Reenviar código por correo"}
+                </Button>
+              </div>
+            </form>
+          )}
 
-      <div className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-center text-xs text-muted-foreground">
-        ¿Querés ingresar con otra cuenta?{" "}
-        <Link to="/login" className="font-semibold text-primary hover:underline">
-          Volver al Inicio de Sesión
-        </Link>
+          {/* Pie de navegación */}
+          <footer className="pt-2 text-center text-xs text-stone-500">
+            ¿Querés usar otra cuenta?{" "}
+            <Link to="/login" className="font-semibold text-[#1d3d29] hover:underline">
+              Volver al inicio de sesión
+            </Link>
+          </footer>
+        </article>
       </div>
     </main>
   );
