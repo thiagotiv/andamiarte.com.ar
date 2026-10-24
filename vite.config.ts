@@ -12,4 +12,12 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    resolve: {
+      alias: [
+        { find: /^punycode\/$/, replacement: "punycode" },
+        { find: "punycode/", replacement: "punycode" },
+      ],
+    },
+  },
 });
